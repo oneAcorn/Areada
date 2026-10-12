@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import app.areada.R
 import app.areada.data.reader.ReaderButtonLayout
 import app.areada.data.reader.ReaderFontChoice
+import app.areada.data.reader.ReaderLanguageMode
 import app.areada.data.reader.ReaderNavigationMode
 import app.areada.data.reader.ReaderOrientationMode
 import app.areada.data.reader.ReaderPreferences
@@ -71,6 +72,7 @@ internal fun ReaderSettingsSheet(
     onExtractedTextToggle: ((Boolean) -> Unit)? = null,
     onExtractedTextScrollToggle: ((Boolean) -> Unit)? = null,
     onBookNoteClick: (() -> Unit)? = null,
+    onSelectLanguage: ((ReaderLanguageMode) -> Unit)? = null,
     onDismiss: () -> Unit,
     onPreferencesChange: (ReaderPreferences) -> Unit,
 ) {
@@ -180,7 +182,10 @@ internal fun ReaderSettingsSheet(
                     selected = preferences.languageMode,
                     expanded = languageExpanded,
                     onToggleExpanded = { languageExpanded = !languageExpanded },
-                    onSelect = { mode -> onPreferencesChange(preferences.copy(languageMode = mode)) },
+                    onSelect = { mode ->
+                        onSelectLanguage?.invoke(mode)
+                            ?: onPreferencesChange(preferences.copy(languageMode = mode))
+                    },
                 )
             }
             if (showReadingControls) {

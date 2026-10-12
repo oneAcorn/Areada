@@ -27,6 +27,24 @@
     <string name="language_spanish">Spanish</string>
     <string name="language_zhcn">简体中文</string>
 
+    <string name="private_mode_title">Private</string>
+    <string name="private_mode_set_password_title">Set password</string>
+    <string name="private_mode_unlock_title">Enter password</string>
+    <string name="private_mode_lock_title">Exit private mode</string>
+    <string name="private_mode_unlock_action">Enter</string>
+    <string name="private_mode_lock_action">Exit</string>
+    <string name="private_mode_password_label">Password</string>
+    <string name="private_mode_password_confirm_label">Confirm password</string>
+    <string name="private_mode_password_hint">Use at least %1$d characters.</string>
+    <string name="private_mode_password_too_short">Use at least 4 characters.</string>
+    <string name="private_mode_password_mismatch">The passwords do not match.</string>
+    <string name="private_mode_wrong_password">Incorrect password.</string>
+    <string name="private_mode_import_folder">Import</string>
+    <string name="private_mode_imported">Moved %1$d books into the private shelf.</string>
+    <string name="private_mode_import_failed">Unable to move books into the private shelf.</string>
+    <string name="private_mode_empty_title">Private shelf is empty</string>
+    <string name="private_mode_empty_body">Pick a folder to move all of its books into the private shelf.</string>
+
     <string name="theme_day">Day</string>
     <string name="theme_sepia">Sepia</string>
     <string name="theme_dark">Dark</string>

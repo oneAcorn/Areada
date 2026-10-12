@@ -232,4 +232,22 @@
     <string name="filter_pdf">PDF</string>
     <string name="filter_txt">TXT</string>
     <string name="language_zhcn">Китайский (упрощ.)</string>
+
+    <string name="private_mode_title">Личное</string>
+    <string name="private_mode_set_password_title">Установить пароль</string>
+    <string name="private_mode_unlock_title">Введите пароль</string>
+    <string name="private_mode_lock_title">Выйти из личного режима</string>
+    <string name="private_mode_unlock_action">Войти</string>
+    <string name="private_mode_lock_action">Выйти</string>
+    <string name="private_mode_password_label">Пароль</string>
+    <string name="private_mode_password_confirm_label">Повторите пароль</string>
+    <string name="private_mode_password_hint">Не менее %1$d символов.</string>
+    <string name="private_mode_password_too_short">Не менее 4 символов.</string>
+    <string name="private_mode_password_mismatch">Пароли не совпадают.</string>
+    <string name="private_mode_wrong_password">Неверный пароль.</string>
+    <string name="private_mode_import_folder">Импорт</string>
+    <string name="private_mode_imported">Перемещено книг в личную полку: %1$d.</string>
+    <string name="private_mode_import_failed">Не удалось переместить книги в личную полку.</string>
+    <string name="private_mode_empty_title">Личная полка пуста</string>
+    <string name="private_mode_empty_body">Выберите папку, чтобы переместить все её книги в личную полку.</string>
 </resources>

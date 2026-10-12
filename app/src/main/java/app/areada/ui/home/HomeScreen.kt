@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.ImportContacts
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
@@ -59,6 +60,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -82,6 +84,9 @@ import app.areada.data.library.LibrarySearchResult
 import app.areada.data.library.LibrarySortMode
 import app.areada.data.library.sortReadingBookmarks
 import app.areada.data.library.sortRecentDocuments
+import app.areada.data.library.sortLibraryBooks
+import app.areada.data.private.PrivateModeStore
+import app.areada.data.reader.ReaderLanguageMode
 import app.areada.data.reader.ReaderPreferences
 import app.areada.data.reader.ReadingBookmark
 import app.areada.data.reader.ReadingProgress
@@ -128,6 +133,7 @@ internal fun HomeScreen(
     bookStatusByUri: Map<String, BookStatus>,
     bookNoteLinksByUri: Map<String, BookNoteLink>,
     pinnedLibraryItemIds: Set<String>,
+    privateLibrary: PrivateLibraryUiState,
     libraryScrollPositions: MutableMap<String, LibraryScrollPosition>,
     onChooseFolder: () -> Unit,
     onOpenFile: () -> Unit,
@@ -158,6 +164,11 @@ internal fun HomeScreen(
     onTogglePinBook: (LibraryBookEntry) -> Unit,
     onTogglePinDocument: (String) -> Unit,
     onUpdateBookStatus: (String, BookStatus) -> Unit,
+    onImportFolderToPrivate: () -> Unit,
+    onSetPrivatePassword: (String) -> Unit,
+    onSetPrivateModeEnabled: (Boolean) -> Unit,
+    onDeletePrivateBook: (LibraryBookEntry) -> Unit,
+    onRefreshPrivateLibrary: () -> Unit,
     onPreferencesChange: (ReaderPreferences) -> Unit,
 ) {
     var showSettings by rememberSaveable {
@@ -232,6 +243,17 @@ internal fun HomeScreen(
     var batchConfirmAction by remember {
         mutableStateOf<String?>(null)
     }
+    var privatePasswordPrompt by remember {
+        mutableStateOf<PrivatePasswordPrompt?>(null)
+    }
+    var privatePasswordError by remember {
+        mutableStateOf<String?>(null)
+    }
+    var privateDeleteTarget by remember {
+        mutableStateOf<LibraryBookEntry?>(null)
+    }
+    val privateContext = LocalContext.current
+    val isPrivateMode = privateLibrary.enabled
     val isSelectionMode by remember {
         derivedStateOf { selectedItemIds.isNotEmpty() }
     }
@@ -270,6 +292,11 @@ internal fun HomeScreen(
                     bookmark?.let { onUpdateBookStatus(it.uriString, status) }
                 }
                 HomeTab.Collection -> {
+                    val privateBook = key.removePrefix("private:").takeIf { key.startsWith("private:") }
+                    if (privateBook != null) {
+                        onUpdateBookStatus(privateBook, status)
+                        return@forEach
+                    }
                     val book = books.firstOrNull { "book:${it.id}" == key }
                     book?.let { onUpdateBookStatus(it.uriString, status) }
                 }
@@ -286,6 +313,10 @@ internal fun HomeScreen(
                     bookmark?.let { onTogglePinDocument(it.id) }
                 }
                 HomeTab.Collection -> {
+                    if (key.startsWith("private:")) {
+                        onTogglePinDocument(key.removePrefix("private:"))
+                        return@forEach
+                    }
                     val folder = folders.firstOrNull { "folder:${it.id}" == key }
                     if (folder != null) { onTogglePinFolder(folder); return@forEach }
                     val book = books.firstOrNull { "book:${it.id}" == key }
@@ -313,6 +344,11 @@ internal fun HomeScreen(
 
     fun batchDelete() {
         selectedItemIds.keys.forEach { key ->
+            if (key.startsWith("private:")) {
+                val privateBook = privateLibrary.books.firstOrNull { book -> "private:${book.id}" == key }
+                privateBook?.let { onDeletePrivateBook(it) }
+                return@forEach
+            }
             val folder = folders.firstOrNull { "folder:${it.id}" == key }
             if (folder != null) { onDeleteFolder(folder); return@forEach }
             val book = books.firstOrNull { "book:${it.id}" == key }
@@ -330,8 +366,71 @@ internal fun HomeScreen(
             showReadingControls = false,
             showLanguageSelector = true,
             showGuideIconToggle = true,
+            onSelectLanguage = { mode ->
+                when (mode) {
+                    ReaderLanguageMode.Russian -> {
+                        showSettings = false
+                        onImportFolderToPrivate()
+                    }
+
+                    ReaderLanguageMode.Spanish -> {
+                        privatePasswordError = null
+                        privatePasswordPrompt = when {
+                            isPrivateMode -> PrivatePasswordPrompt.LOCK
+                            privateLibrary.passwordSet -> PrivatePasswordPrompt.UNLOCK
+                            else -> PrivatePasswordPrompt.CREATE
+                        }
+                    }
+
+                    else -> onPreferencesChange(preferences.copy(languageMode = mode))
+                }
+            },
             onDismiss = { showSettings = false },
             onPreferencesChange = onPreferencesChange,
+        )
+    }
+
+    privatePasswordPrompt?.let { prompt ->
+        val wrongPasswordMessage = stringResource(R.string.private_mode_wrong_password)
+        PrivateModePasswordDialog(
+            mode = prompt,
+            errorMessage = privatePasswordError,
+            onDismiss = {
+                privatePasswordPrompt = null
+                privatePasswordError = null
+            },
+            onSubmit = { password ->
+                when (prompt) {
+                    PrivatePasswordPrompt.CREATE -> {
+                        privatePasswordPrompt = null
+                        privatePasswordError = null
+                        showSettings = false
+                        onSetPrivatePassword(password)
+                    }
+
+                    PrivatePasswordPrompt.UNLOCK -> {
+                        if (PrivateModeStore.verifyPassword(privateContext, password)) {
+                            privatePasswordPrompt = null
+                            privatePasswordError = null
+                            showSettings = false
+                            onSetPrivateModeEnabled(true)
+                        } else {
+                            privatePasswordError = wrongPasswordMessage
+                        }
+                    }
+
+                    PrivatePasswordPrompt.LOCK -> {
+                        if (PrivateModeStore.verifyPassword(privateContext, password)) {
+                            privatePasswordPrompt = null
+                            privatePasswordError = null
+                            showSettings = false
+                            onSetPrivateModeEnabled(false)
+                        } else {
+                            privatePasswordError = wrongPasswordMessage
+                        }
+                    }
+                }
+            },
         )
     }
 
@@ -426,6 +525,16 @@ internal fun HomeScreen(
                     is LibraryActionTarget.Book -> onDeleteBook(target.book)
                 }
                 deleteTarget = null
+            },
+        )
+    }
+
+    privateDeleteTarget?.let { target ->
+        ConfirmDeleteDialog(
+            onDismiss = { privateDeleteTarget = null },
+            onConfirm = {
+                onDeletePrivateBook(target)
+                privateDeleteTarget = null
             },
         )
     }
@@ -551,6 +660,19 @@ internal fun HomeScreen(
     val visibleBooks = remember(books, fileFilter) {
         books.filterBooksByLibraryFileFilter(fileFilter)
     }
+    val visiblePrivateBooks = remember(privateLibrary.books, fileFilter, sortMode, progressByUri, recents, bookStatusByUri, pinnedLibraryItemIds) {
+        sortLibraryBooks(
+            books = privateLibrary.books
+                .filterBooksByLibraryFileFilter(fileFilter)
+                .map { book ->
+                    if (book.uriString in pinnedLibraryItemIds) book.copy(pinned = true) else book
+                },
+            sortMode = sortMode,
+            progressByUri = progressByUri,
+            recents = recents,
+            bookStatusByUri = bookStatusByUri,
+        )
+    }
     val duplicateVisibleBookTitleKeys = remember(visibleBooks) {
         visibleBooks
             .groupingBy { book -> book.title.trim().lowercase() }
@@ -588,13 +710,18 @@ internal fun HomeScreen(
         }
     }
     val collectionFallback = stringResource(R.string.collection)
-    val collectionTitle = remember(currentRelativePath, collectionFallback) {
-        currentRelativePath
-            .trim()
-            .replace('\\', '/')
-            .split('/')
-            .lastOrNull { segment -> segment.isNotBlank() }
-            ?: collectionFallback
+    val privateCollectionTitle = stringResource(R.string.private_mode_title)
+    val collectionTitle = remember(currentRelativePath, collectionFallback, isPrivateMode, privateCollectionTitle) {
+        if (isPrivateMode) {
+            privateCollectionTitle
+        } else {
+            currentRelativePath
+                .trim()
+                .replace('\\', '/')
+                .split('/')
+                .lastOrNull { segment -> segment.isNotBlank() }
+                ?: collectionFallback
+        }
     }
     val libraryScrollKey = remember(
         selectedRootUriString,
@@ -602,6 +729,7 @@ internal fun HomeScreen(
         fileFilter,
         sortMode,
         selectedHomeTab,
+        isPrivateMode,
     ) {
         listOf(
             selectedRootUriString.orEmpty(),
@@ -609,6 +737,7 @@ internal fun HomeScreen(
             fileFilter.name,
             sortMode.name,
             selectedHomeTab.name,
+            isPrivateMode.toString(),
         ).joinToString(separator = "\u001F")
     }
 
@@ -628,6 +757,8 @@ internal fun HomeScreen(
             roots,
             visibleFolders,
             visibleBooks,
+            visiblePrivateBooks,
+            isPrivateMode,
         ) {
             var count = 2
             when (selectedHomeTab) {
@@ -637,6 +768,8 @@ internal fun HomeScreen(
                             count += 1
                         }
                         count += if (visibleSearchResults.isEmpty()) 1 else visibleSearchResults.size.coerceAtMost(41)
+                    } else if (isPrivateMode) {
+                        count += if (visiblePrivateBooks.isEmpty()) 1 else visiblePrivateBooks.size
                     } else if (selectedRootUriString != null && roots.isNotEmpty()) {
                         count += 1
                         count += visibleFolders.size
@@ -743,8 +876,16 @@ internal fun HomeScreen(
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onBackground,
                         )
-                        if (roots.isNotEmpty()) {
-                            HeaderIconButton(onClick = onRefresh) {
+                        if (roots.isNotEmpty() || isPrivateMode) {
+                            HeaderIconButton(
+                                onClick = {
+                                    if (isPrivateMode) {
+                                        onRefreshPrivateLibrary()
+                                    } else {
+                                        onRefresh()
+                                    }
+                                },
+                            ) {
                                 Icon(
                                     imageVector = Icons.Outlined.Refresh,
                                     contentDescription = stringResource(R.string.refresh_library),
@@ -755,7 +896,7 @@ internal fun HomeScreen(
                         }
                     }
                     Row(verticalAlignment = Alignment.Bottom) {
-                        if (selectedRootUriString != null) {
+                        if (selectedRootUriString != null && !isPrivateMode) {
                             Text(
                                 text = stringResource(R.string.add_note),
                                 modifier = Modifier
@@ -805,7 +946,13 @@ internal fun HomeScreen(
                         actionContentColor = MaterialTheme.colorScheme.onSurface,
                     ) {
                         Button(
-                            onClick = onChooseFolder,
+                            onClick = {
+                                if (isPrivateMode) {
+                                    onImportFolderToPrivate()
+                                } else {
+                                    onChooseFolder()
+                                }
+                            },
                             modifier = Modifier.fillMaxSize(),
                             shape = RectangleShape,
                             colors = ButtonDefaults.buttonColors(
@@ -819,13 +966,25 @@ internal fun HomeScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
-                                    imageVector = Icons.Outlined.CreateNewFolder,
-                                    contentDescription = stringResource(R.string.choose_folder),
+                                    imageVector = if (isPrivateMode) {
+                                        Icons.Outlined.Lock
+                                    } else {
+                                        Icons.Outlined.CreateNewFolder
+                                    },
+                                    contentDescription = if (isPrivateMode) {
+                                        stringResource(R.string.private_mode_import_folder)
+                                    } else {
+                                        stringResource(R.string.choose_folder)
+                                    },
                                     modifier = Modifier.size(20.dp),
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = stringResource(R.string.choose_folder),
+                                    text = if (isPrivateMode) {
+                                        stringResource(R.string.private_mode_import_folder)
+                                    } else {
+                                        stringResource(R.string.choose_folder)
+                                    },
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
@@ -833,32 +992,34 @@ internal fun HomeScreen(
                             }
                         }
                     }
-                    SwipeActionBox(
-                        actionLabel = stringResource(R.string.manage),
-                        onSwipe = { showManageFolders = true },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp),
-                        actionContainerColor = MaterialTheme.colorScheme.primary,
-                        actionContentColor = MaterialTheme.colorScheme.onPrimary,
-                    ) {
-                        FolderPickerDropdown(
-                            entries = folderPickerEntries,
-                            selectedRootUriString = selectedRootUriString,
-                            currentRelativePath = currentRelativePath,
-                            expanded = showFolderPicker,
-                            onToggleExpanded = {
-                                if (folderPickerEntries.isEmpty()) {
-                                    onChooseFolder()
-                                } else {
-                                    showFolderPicker = !showFolderPicker
-                                }
-                            },
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                    if (!isPrivateMode) {
+                        SwipeActionBox(
+                            actionLabel = stringResource(R.string.manage),
+                            onSwipe = { showManageFolders = true },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp),
+                            actionContainerColor = MaterialTheme.colorScheme.primary,
+                            actionContentColor = MaterialTheme.colorScheme.onPrimary,
+                        ) {
+                            FolderPickerDropdown(
+                                entries = folderPickerEntries,
+                                selectedRootUriString = selectedRootUriString,
+                                currentRelativePath = currentRelativePath,
+                                expanded = showFolderPicker,
+                                onToggleExpanded = {
+                                    if (folderPickerEntries.isEmpty()) {
+                                        onChooseFolder()
+                                    } else {
+                                        showFolderPicker = !showFolderPicker
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                     }
                 }
-                if (showFolderPicker && folderPickerEntries.isNotEmpty()) {
+                if (!isPrivateMode && showFolderPicker && folderPickerEntries.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     FolderPickerInlinePanel(
                         entries = folderPickerEntries,
@@ -1126,6 +1287,60 @@ internal fun HomeScreen(
                             onOpenResult = onOpenSearchResult,
                         )
                     }
+                } else if (isPrivateMode) {
+                    if (visiblePrivateBooks.isEmpty()) {
+                        item {
+                            EmptyStateCard(
+                                title = stringResource(R.string.private_mode_empty_title),
+                                body = stringResource(R.string.private_mode_empty_body),
+                                actionLabel = stringResource(R.string.private_mode_import_folder),
+                                onAction = onImportFolderToPrivate,
+                            )
+                        }
+                    } else {
+                        items(
+                            items = visiblePrivateBooks,
+                            key = { book -> "private:${book.id}" },
+                        ) { book ->
+                            val bookKey = "private:${book.id}"
+                            val isSelected = bookKey in selectedItemIds
+                            SwipeActionBox(
+                                actionLabel = stringResource(R.string.actions),
+                                onSwipe = { privateDeleteTarget = book },
+                                onSwipeEndToStart = {
+                                    if (isSelected) {
+                                        selectedItemIds.remove(bookKey)
+                                    } else {
+                                        selectedItemIds[bookKey] = true
+                                    }
+                                },
+                            ) {
+                                BookRow(
+                                    title = book.title,
+                                    type = book.type,
+                                    typeLabel = if (book.type == DocumentType.ARCHIVE) {
+                                        archiveFormatLabel(book.fileName)
+                                    } else null,
+                                    progressLabel = bookRowProgressLabel(
+                                        type = book.type,
+                                        progress = progressByUri[book.uriString],
+                                        status = bookStatusByUri[book.uriString],
+                                    ),
+                                    pinned = book.uriString in pinnedLibraryItemIds,
+                                    hasNote = hasBookNote(book.uriString, bookNoteLinksByUri),
+                                    selected = isSelected,
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            selectedItemIds.remove(bookKey)
+                                        } else {
+                                            onOpenBook(book)
+                                        }
+                                    },
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
                 } else if (selectedRootUriString == null || roots.isEmpty()) {
                     item {
                         EmptyStateCard(
@@ -1287,6 +1502,12 @@ internal fun HomeScreen(
             ) {
                 val hasMarkableItems = when (selectedHomeTab) {
                     HomeTab.Collection -> selectedItemIds.keys.all { key ->
+                        if (key.startsWith("private:")) {
+                            val privateBook = privateLibrary.books.firstOrNull { book -> "private:${book.id}" == key }
+                            return@all privateBook != null &&
+                                privateBook.type != DocumentType.ZIP &&
+                                privateBook.type != DocumentType.ARCHIVE
+                        }
                         if (!key.startsWith("book:")) return@all false
                         val bookId = key.removePrefix("book:")
                         val book = books.firstOrNull { it.id == bookId }

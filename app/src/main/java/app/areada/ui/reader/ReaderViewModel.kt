@@ -39,6 +39,8 @@ import app.areada.data.library.isReadingProgressCompleted
 import app.areada.data.library.libraryRootSignature
 import app.areada.data.parseArchiveBookUriString
 import app.areada.data.parseZipBookUriString
+import app.areada.data.private.PrivateLibraryStore
+import app.areada.data.private.PrivateModeStore
 import app.areada.data.library.rootPickerEntries
 import app.areada.data.library.sameLibraryBooks
 import app.areada.data.library.sameLibraryFolders
@@ -132,6 +134,13 @@ class ReaderViewModel : ViewModel() {
             lastNoteSectionCache = ReaderStateStore.loadLastNoteSections(appContext)
             libraryAddedAtCache = addedAtById
             val pickerEntries = rootPickerEntries(libraryRoots)
+            val privateModeEnabled = PrivateModeStore.isEnabled(appContext)
+            val privatePasswordSet = PrivateModeStore.hasPassword(appContext)
+            val privateBooks = if (privateModeEnabled) {
+                PrivateLibraryStore.listBooks(appContext)
+            } else {
+                emptyList()
+            }
 
             if (libraryRoots.isEmpty()) {
                 clearSearchIndex()
@@ -151,6 +160,10 @@ class ReaderViewModel : ViewModel() {
                         selectedHomeTabName = selectedHomeTabName,
                         pinnedLibraryItemIds = pinnedIds,
                         libraryAddedAtById = addedAtById,
+                        privateModeEnabled = privateModeEnabled,
+                        privatePasswordSet = privatePasswordSet,
+                        privateLibraryBusy = false,
+                        privateBooks = privateBooks,
                     )
                 }
                 if (externalOpenUri == null) {
@@ -199,6 +212,10 @@ class ReaderViewModel : ViewModel() {
                         selectedHomeTabName = selectedHomeTabName,
                         pinnedLibraryItemIds = pinnedIds,
                         libraryAddedAtById = libraryAddedAtCache,
+                        privateModeEnabled = privateModeEnabled,
+                        privatePasswordSet = privatePasswordSet,
+                        privateLibraryBusy = false,
+                        privateBooks = privateBooks,
                     )
                 }
                 rebuildSearchIndex(
@@ -228,6 +245,10 @@ class ReaderViewModel : ViewModel() {
                         selectedHomeTabName = selectedHomeTabName,
                         pinnedLibraryItemIds = pinnedIds,
                         libraryAddedAtById = addedAtById,
+                        privateModeEnabled = privateModeEnabled,
+                        privatePasswordSet = privatePasswordSet,
+                        privateLibraryBusy = false,
+                        privateBooks = privateBooks,
                         errorMessage = appContext.getString(R.string.folder_access_lost_body),
                     )
                 }
@@ -1771,6 +1792,174 @@ class ReaderViewModel : ViewModel() {
                 _uiState.update {
                     it.copy(
                         isLoading = false,
+                        errorMessage = displayError(appContext, throwable, appContext.getString(R.string.unable_delete_book)),
+                    )
+                }
+            }
+        }
+    }
+
+    fun setPrivateModePassword(
+        context: Context,
+        password: String,
+    ) {
+        val appContext = context.applicationContext
+        viewModelScope.launch {
+            _uiState.update { it.copy(privateLibraryBusy = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    PrivateModeStore.setPassword(appContext, password)
+                    PrivateModeStore.setEnabled(appContext, true)
+                    PrivateLibraryStore.listBooks(appContext)
+                }
+            }.onSuccess { books ->
+                _uiState.update {
+                    it.copy(
+                        privatePasswordSet = true,
+                        privateModeEnabled = true,
+                        privateLibraryBusy = false,
+                        privateBooks = books,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        privateLibraryBusy = false,
+                        errorMessage = displayError(appContext, throwable, appContext.getString(R.string.private_mode_import_failed)),
+                    )
+                }
+            }
+        }
+    }
+
+    fun setPrivateModeEnabled(
+        context: Context,
+        enabled: Boolean,
+    ) {
+        val appContext = context.applicationContext
+        viewModelScope.launch {
+            _uiState.update { it.copy(privateLibraryBusy = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    PrivateModeStore.setEnabled(appContext, enabled)
+                    if (enabled) PrivateLibraryStore.listBooks(appContext) else emptyList()
+                }
+            }.onSuccess { books ->
+                _uiState.update {
+                    it.copy(
+                        privateModeEnabled = enabled,
+                        privateLibraryBusy = false,
+                        privateBooks = books,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        privateLibraryBusy = false,
+                        errorMessage = displayError(appContext, throwable, appContext.getString(R.string.private_mode_import_failed)),
+                    )
+                }
+            }
+        }
+    }
+
+    fun refreshPrivateLibrary(context: Context) {
+        val appContext = context.applicationContext
+        if (!_uiState.value.privateModeEnabled) {
+            return
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val books = PrivateLibraryStore.listBooks(appContext)
+            _uiState.update { it.copy(privateBooks = books) }
+        }
+    }
+
+    fun importFolderToPrivateLibrary(
+        context: Context,
+        treeUri: Uri,
+    ) {
+        val appContext = context.applicationContext
+        viewModelScope.launch {
+            _uiState.update { it.copy(privateLibraryBusy = true, isLoading = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    PrivateLibraryStore.moveFolderBooks(appContext, treeUri)
+                }
+            }.onSuccess { result ->
+                val books = withContext(Dispatchers.IO) { PrivateLibraryStore.listBooks(appContext) }
+                clearFolderStateCache()
+                reloadCurrentLibraryFolder(appContext)
+                markSearchIndexDirty(appContext, _uiState.value.libraryRoots)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        privateLibraryBusy = false,
+                        privateBooks = books,
+                        errorMessage = appContext.getString(R.string.private_mode_imported, result.movedCount),
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        privateLibraryBusy = false,
+                        errorMessage = displayError(appContext, throwable, appContext.getString(R.string.private_mode_import_failed)),
+                    )
+                }
+            }
+        }
+    }
+
+    fun deletePrivateBook(
+        context: Context,
+        book: LibraryBookEntry,
+    ) {
+        val appContext = context.applicationContext
+        viewModelScope.launch {
+            runCatching {
+                _uiState.update { it.copy(privateLibraryBusy = true, errorMessage = null) }
+                val deleted = withContext(Dispatchers.IO) {
+                    PrivateLibraryStore.deleteBook(appContext, book.uriString)
+                }
+                if (!deleted) {
+                    _uiState.update {
+                        it.copy(privateLibraryBusy = false, errorMessage = appContext.getString(R.string.unable_delete_book))
+                    }
+                    return@launch
+                }
+
+                val updatedRecents = _uiState.value.recents.filterNot { it.uriString == book.uriString }
+                val updatedProgress = _uiState.value.progressByUri - book.uriString
+                val updatedBookmarks = _uiState.value.bookmarks.filterNot { it.uriString == book.uriString }
+                val updatedBookNoteLinks = _uiState.value.bookNoteLinksByUri
+                    .filterKeys { bookUriString -> bookUriString != book.uriString }
+                    .filterValues { link -> link.noteUriString != book.uriString }
+                val updatedLastNoteSections = _uiState.value.lastNoteSectionByUri - book.uriString
+                val remainingBooks = withContext(Dispatchers.IO) {
+                    bookNoteLinksCache = updatedBookNoteLinks
+                    lastNoteSectionCache = updatedLastNoteSections
+                    RecentDocumentStore.save(appContext, updatedRecents)
+                    ReaderStateStore.saveProgress(appContext, updatedProgress)
+                    ReaderStateStore.saveBookmarks(appContext, updatedBookmarks)
+                    ReaderStateStore.saveBookNoteLinks(appContext, updatedBookNoteLinks)
+                    ReaderStateStore.saveLastNoteSections(appContext, updatedLastNoteSections)
+                    PrivateLibraryStore.listBooks(appContext)
+                }
+                _uiState.update {
+                    it.copy(
+                        privateLibraryBusy = false,
+                        privateBooks = remainingBooks,
+                        recents = updatedRecents,
+                        progressByUri = updatedProgress,
+                        bookmarks = updatedBookmarks,
+                        bookNoteLinksByUri = updatedBookNoteLinks,
+                        lastNoteSectionByUri = updatedLastNoteSections,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        privateLibraryBusy = false,
                         errorMessage = displayError(appContext, throwable, appContext.getString(R.string.unable_delete_book)),
                     )
                 }

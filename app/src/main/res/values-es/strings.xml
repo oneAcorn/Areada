@@ -230,4 +230,22 @@
     <string name="filter_pdf">PDF</string>
     <string name="filter_txt">TXT</string>
     <string name="language_zhcn">Chino simplificado</string>
+
+    <string name="private_mode_title">Privado</string>
+    <string name="private_mode_set_password_title">Establecer contraseña</string>
+    <string name="private_mode_unlock_title">Introduce la contraseña</string>
+    <string name="private_mode_lock_title">Salir del modo privado</string>
+    <string name="private_mode_unlock_action">Entrar</string>
+    <string name="private_mode_lock_action">Salir</string>
+    <string name="private_mode_password_label">Contraseña</string>
+    <string name="private_mode_password_confirm_label">Confirmar contraseña</string>
+    <string name="private_mode_password_hint">Usa al menos %1$d caracteres.</string>
+    <string name="private_mode_password_too_short">Usa al menos 4 caracteres.</string>
+    <string name="private_mode_password_mismatch">Las contraseñas no coinciden.</string>
+    <string name="private_mode_wrong_password">Contraseña incorrecta.</string>
+    <string name="private_mode_import_folder">Importar</string>
+    <string name="private_mode_imported">Se movieron %1$d libros al estante privado.</string>
+    <string name="private_mode_import_failed">No se pudieron mover los libros al estante privado.</string>
+    <string name="private_mode_empty_title">El estante privado está vacío</string>
+    <string name="private_mode_empty_body">Elige una carpeta para mover todos sus libros al estante privado.</string>
 </resources>

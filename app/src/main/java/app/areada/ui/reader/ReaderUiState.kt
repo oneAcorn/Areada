@@ -48,6 +48,10 @@ data class ReaderUiState(
     val libraryAddedAtById: Map<String, Long> = emptyMap(),
     val currentScreen: ReaderScreen = ReaderScreen.Home,
     val zipEntriesToChoose: List<ZipBookEntry> = emptyList(),
+    val privateModeEnabled: Boolean = false,
+    val privatePasswordSet: Boolean = false,
+    val privateLibraryBusy: Boolean = false,
+    val privateBooks: List<LibraryBookEntry> = emptyList(),
     val errorMessage: String? = null,
 )
 

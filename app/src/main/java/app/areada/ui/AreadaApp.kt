@@ -44,6 +44,7 @@ import app.areada.data.reader.ReaderLanguageMode
 import app.areada.data.reader.ReaderPreferences
 import app.areada.data.reader.ReaderStateStore
 import app.areada.ui.home.HomeScreen
+import app.areada.ui.home.PrivateLibraryUiState
 import app.areada.ui.reader.AppWindowBackgroundEffect
 import app.areada.ui.reader.EpubReaderScreen
 import app.areada.ui.reader.Fb2ReaderScreen
@@ -90,6 +91,11 @@ fun AreadaApp(
         filePickerInFlight = false
         uri?.let { pickedUri ->
             viewModel.openPickedDocument(context, pickedUri)
+        }
+    }
+    val privateFolderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let { pickedUri ->
+            viewModel.importFolderToPrivateLibrary(context, pickedUri)
         }
     }
 
@@ -216,6 +222,12 @@ fun AreadaApp(
                         bookStatusByUri = uiState.bookStatusByUri,
                         bookNoteLinksByUri = uiState.bookNoteLinksByUri,
                         pinnedLibraryItemIds = uiState.pinnedLibraryItemIds,
+                        privateLibrary = PrivateLibraryUiState(
+                            enabled = uiState.privateModeEnabled,
+                            passwordSet = uiState.privatePasswordSet,
+                            busy = uiState.privateLibraryBusy,
+                            books = uiState.privateBooks,
+                        ),
                         libraryScrollPositions = libraryScrollPositions,
                         onChooseFolder = { folderPicker.launch(null) },
                         onOpenFile = {
@@ -252,6 +264,15 @@ fun AreadaApp(
                         onUpdateBookStatus = { uriString, status ->
                             viewModel.updateBookStatus(context, uriString, status)
                         },
+                        onImportFolderToPrivate = { privateFolderPicker.launch(null) },
+                        onSetPrivatePassword = { password ->
+                            viewModel.setPrivateModePassword(context, password)
+                        },
+                        onSetPrivateModeEnabled = { enabled ->
+                            viewModel.setPrivateModeEnabled(context, enabled)
+                        },
+                        onDeletePrivateBook = { book -> viewModel.deletePrivateBook(context, book) },
+                        onRefreshPrivateLibrary = { viewModel.refreshPrivateLibrary(context) },
                         onPreferencesChange = { preferences ->
                             viewModel.updatePreferences(context, preferences)
                         },
