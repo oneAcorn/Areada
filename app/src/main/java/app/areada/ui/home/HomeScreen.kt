@@ -686,26 +686,35 @@ internal fun HomeScreen(
     val visibleSearchResults = remember(searchResults, fileFilter, folderDocumentTypesById) {
         searchResults.filterSearchResultsByLibraryFileFilter(fileFilter, folderDocumentTypesById)
     }
-    val visibleBookmarks = remember(bookmarks, fileFilter, sortMode, pinnedLibraryItemIds) {
+    val visibleBookmarks = remember(bookmarks, fileFilter, sortMode, pinnedLibraryItemIds, isPrivateMode) {
         bookmarks
+            .filterBookmarksByPrivateModeScope(isPrivateMode)
             .filterBookmarksByLibraryFileFilter(fileFilter)
             .let { sortReadingBookmarks(it, sortMode) }
             .sortedByDescending { it.id in pinnedLibraryItemIds }
     }
-    val visibleRecents = remember(recents, fileFilter, sortMode, progressByUri, pinnedLibraryItemIds) {
+    val visibleRecents = remember(recents, fileFilter, sortMode, progressByUri, pinnedLibraryItemIds, isPrivateMode) {
         recents
+            .filterRecentsByPrivateModeScope(isPrivateMode)
             .filterRecentsByLibraryFileFilter(fileFilter)
             .let { sortRecentDocuments(it, sortMode, progressByUri) }
             .sortedByDescending { it.uriString in pinnedLibraryItemIds }
     }
-    LaunchedEffect(searchQuery) {
-        if (searchQuery.isNotBlank() && selectedHomeTab != HomeTab.Collection) {
+    val activeSearchQuery = if (isPrivateMode) "" else searchQuery
+    LaunchedEffect(activeSearchQuery) {
+        if (activeSearchQuery.isNotBlank() && selectedHomeTab != HomeTab.Collection) {
             selectedHomeTab = HomeTab.Collection
+        }
+    }
+    LaunchedEffect(isPrivateMode, searchQuery) {
+        if (isPrivateMode && searchQuery.isNotBlank()) {
+            clearSearchFocus()
+            onSearchQueryChange("")
         }
     }
     LaunchedEffect(selectedHomeTabName) {
         val savedTab = homeTabFromName(selectedHomeTabName)
-        if (searchQuery.isBlank() && selectedHomeTab != savedTab) {
+        if (activeSearchQuery.isBlank() && selectedHomeTab != savedTab) {
             selectedHomeTab = savedTab
         }
     }
@@ -752,7 +761,7 @@ internal fun HomeScreen(
             visibleRecents,
             visibleBookmarks,
             visibleSearchResults,
-            searchQuery,
+            activeSearchQuery,
             selectedRootUriString,
             roots,
             visibleFolders,
@@ -763,7 +772,7 @@ internal fun HomeScreen(
             var count = 2
             when (selectedHomeTab) {
                 HomeTab.Collection -> {
-                    if (searchQuery.isNotBlank()) {
+                    if (activeSearchQuery.isNotBlank()) {
                         if (selectedRootUriString != null && roots.isNotEmpty()) {
                             count += 1
                         }
@@ -1038,13 +1047,15 @@ internal fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    SearchBar(
-                        query = searchQuery,
-                        isSearching = isSearching,
-                        onQueryChange = onSearchQueryChange,
-                        onFocusChanged = { focused -> searchFocused = focused },
-                        modifier = Modifier.weight(1f),
-                    )
+                    if (!isPrivateMode) {
+                        SearchBar(
+                            query = searchQuery,
+                            isSearching = isSearching,
+                            onQueryChange = onSearchQueryChange,
+                            onFocusChanged = { focused -> searchFocused = focused },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                     LibrarySortButton(
                         sortMode = sortMode,
                         expanded = showSortMenu,
@@ -1279,7 +1290,7 @@ internal fun HomeScreen(
             }
 
             if (selectedHomeTab == HomeTab.Collection) {
-                if (searchQuery.isNotBlank()) {
+                if (activeSearchQuery.isNotBlank()) {
                     item {
                         SearchResults(
                             results = visibleSearchResults,

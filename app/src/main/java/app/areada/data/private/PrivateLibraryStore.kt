@@ -18,12 +18,25 @@ data class PrivateImportResult(
 object PrivateLibraryStore {
     const val DirectoryName = "books"
     private const val ProviderSuffix = ".private_library"
+    private const val ContentUriScheme = "content://"
     private const val MaxImportDepth = 18
     private const val MaxUniqueNameAttempts = 1000
 
     fun libraryDir(context: Context): File = File(context.filesDir, DirectoryName)
 
     fun authority(context: Context): String = context.packageName + ProviderSuffix
+
+    fun isPrivateUriString(uriString: String): Boolean {
+        val trimmed = uriString.trim()
+        if (!trimmed.startsWith(ContentUriScheme)) {
+            return false
+        }
+        val uriAuthority = trimmed.removePrefix(ContentUriScheme)
+            .substringBefore('/')
+            .substringBefore('?')
+            .substringBefore('#')
+        return uriAuthority.endsWith(ProviderSuffix)
+    }
 
     fun listBooks(context: Context): List<LibraryBookEntry> {
         val providerAuthority = authority(context)

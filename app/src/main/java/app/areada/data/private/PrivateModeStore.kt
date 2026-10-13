@@ -7,7 +7,7 @@ object PrivateModeStore {
     private const val PREFERENCES_NAME = "areada_private_mode"
     private const val KEY_PASSWORD_SALT = "password_salt"
     private const val KEY_PASSWORD_HASH = "password_hash"
-    private const val KEY_MODE_ENABLED = "private_mode_enabled"
+    private const val KEY_LEGACY_MODE_ENABLED = "private_mode_enabled"
 
     private var cachedPrefs: SharedPreferences? = null
     private var cachedPrefsContext: Context? = null
@@ -45,13 +45,11 @@ object PrivateModeStore {
         return PrivateModePassword.matches(salt, hash, password)
     }
 
-    fun isEnabled(context: Context): Boolean =
-        prefs(context).getBoolean(KEY_MODE_ENABLED, false)
-
-    fun setEnabled(
-        context: Context,
-        enabled: Boolean,
-    ) {
-        prefs(context).edit().putBoolean(KEY_MODE_ENABLED, enabled).apply()
+    fun clearLegacyModeFlag(context: Context) {
+        val store = prefs(context)
+        if (!store.contains(KEY_LEGACY_MODE_ENABLED)) {
+            return
+        }
+        store.edit().remove(KEY_LEGACY_MODE_ENABLED).apply()
     }
 }

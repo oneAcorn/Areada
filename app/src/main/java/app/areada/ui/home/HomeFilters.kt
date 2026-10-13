@@ -10,6 +10,7 @@ import app.areada.data.library.LibraryFileFilter
 import app.areada.data.library.LibraryFolderEntry
 import app.areada.data.library.LibrarySearchResult
 import app.areada.data.library.LibrarySearchResultType
+import app.areada.data.private.PrivateLibraryStore
 import app.areada.data.reader.ReadingBookmark
 import app.areada.data.reader.ReadingProgress
 import app.areada.data.reader.RecentDocument
@@ -36,6 +37,12 @@ internal fun List<ReadingBookmark>.filterBookmarksByLibraryFileFilter(filter: Li
 
 internal fun List<RecentDocument>.filterRecentsByLibraryFileFilter(filter: LibraryFileFilter): List<RecentDocument> =
     filter.documentTypes?.let { types -> this.filter { recent -> recent.type in types } } ?: this
+
+internal fun List<ReadingBookmark>.filterBookmarksByPrivateModeScope(privateMode: Boolean): List<ReadingBookmark> =
+    filter { bookmark -> PrivateLibraryStore.isPrivateUriString(bookmark.uriString) == privateMode }
+
+internal fun List<RecentDocument>.filterRecentsByPrivateModeScope(privateMode: Boolean): List<RecentDocument> =
+    filter { recent -> PrivateLibraryStore.isPrivateUriString(recent.uriString) == privateMode }
 
 internal fun List<LibraryFolderEntry>.filterFoldersByLibraryFileFilter(
     filter: LibraryFileFilter,

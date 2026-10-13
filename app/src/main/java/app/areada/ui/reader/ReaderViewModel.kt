@@ -134,13 +134,8 @@ class ReaderViewModel : ViewModel() {
             lastNoteSectionCache = ReaderStateStore.loadLastNoteSections(appContext)
             libraryAddedAtCache = addedAtById
             val pickerEntries = rootPickerEntries(libraryRoots)
-            val privateModeEnabled = PrivateModeStore.isEnabled(appContext)
+            PrivateModeStore.clearLegacyModeFlag(appContext)
             val privatePasswordSet = PrivateModeStore.hasPassword(appContext)
-            val privateBooks = if (privateModeEnabled) {
-                PrivateLibraryStore.listBooks(appContext)
-            } else {
-                emptyList()
-            }
 
             if (libraryRoots.isEmpty()) {
                 clearSearchIndex()
@@ -160,10 +155,7 @@ class ReaderViewModel : ViewModel() {
                         selectedHomeTabName = selectedHomeTabName,
                         pinnedLibraryItemIds = pinnedIds,
                         libraryAddedAtById = addedAtById,
-                        privateModeEnabled = privateModeEnabled,
                         privatePasswordSet = privatePasswordSet,
-                        privateLibraryBusy = false,
-                        privateBooks = privateBooks,
                     )
                 }
                 if (externalOpenUri == null) {
@@ -212,10 +204,7 @@ class ReaderViewModel : ViewModel() {
                         selectedHomeTabName = selectedHomeTabName,
                         pinnedLibraryItemIds = pinnedIds,
                         libraryAddedAtById = libraryAddedAtCache,
-                        privateModeEnabled = privateModeEnabled,
                         privatePasswordSet = privatePasswordSet,
-                        privateLibraryBusy = false,
-                        privateBooks = privateBooks,
                     )
                 }
                 rebuildSearchIndex(
@@ -245,10 +234,7 @@ class ReaderViewModel : ViewModel() {
                         selectedHomeTabName = selectedHomeTabName,
                         pinnedLibraryItemIds = pinnedIds,
                         libraryAddedAtById = addedAtById,
-                        privateModeEnabled = privateModeEnabled,
                         privatePasswordSet = privatePasswordSet,
-                        privateLibraryBusy = false,
-                        privateBooks = privateBooks,
                         errorMessage = appContext.getString(R.string.folder_access_lost_body),
                     )
                 }
@@ -1809,7 +1795,6 @@ class ReaderViewModel : ViewModel() {
             runCatching {
                 withContext(Dispatchers.IO) {
                     PrivateModeStore.setPassword(appContext, password)
-                    PrivateModeStore.setEnabled(appContext, true)
                     PrivateLibraryStore.listBooks(appContext)
                 }
             }.onSuccess { books ->
@@ -1841,7 +1826,6 @@ class ReaderViewModel : ViewModel() {
             _uiState.update { it.copy(privateLibraryBusy = true, errorMessage = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
-                    PrivateModeStore.setEnabled(appContext, enabled)
                     if (enabled) PrivateLibraryStore.listBooks(appContext) else emptyList()
                 }
             }.onSuccess { books ->
