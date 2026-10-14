@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import app.areada.R
 import app.areada.data.library.LibraryBookEntry
+import app.areada.data.library.LibraryFolderEntry
 import app.areada.data.private.PrivatePasswordMinimumLength
 import app.areada.data.private.PrivateModePassword
 import app.areada.ui.reader.PromptChoiceButton
@@ -35,6 +36,8 @@ internal data class PrivateLibraryUiState(
     val enabled: Boolean = false,
     val passwordSet: Boolean = false,
     val busy: Boolean = false,
+    val currentRelativePath: String = "",
+    val folders: List<LibraryFolderEntry> = emptyList(),
     val books: List<LibraryBookEntry> = emptyList(),
 )
 

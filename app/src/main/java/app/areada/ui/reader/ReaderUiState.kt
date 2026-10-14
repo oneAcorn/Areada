@@ -51,6 +51,8 @@ data class ReaderUiState(
     val privateModeEnabled: Boolean = false,
     val privatePasswordSet: Boolean = false,
     val privateLibraryBusy: Boolean = false,
+    val privateCurrentRelativePath: String = "",
+    val privateFolders: List<LibraryFolderEntry> = emptyList(),
     val privateBooks: List<LibraryBookEntry> = emptyList(),
     val errorMessage: String? = null,
 )

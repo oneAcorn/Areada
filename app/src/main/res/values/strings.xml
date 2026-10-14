@@ -41,6 +41,7 @@
     <string name="private_mode_wrong_password">Incorrect password.</string>
     <string name="private_mode_import_folder">Import</string>
     <string name="private_mode_imported">Moved %1$d books into the private shelf.</string>
+    <string name="private_mode_imported_merged">Moved %1$d books into the private shelf and skipped %2$d duplicates.</string>
     <string name="private_mode_import_failed">Unable to move books into the private shelf.</string>
     <string name="private_mode_empty_title">Private shelf is empty</string>
     <string name="private_mode_empty_body">Pick a folder to move all of its books into the private shelf.</string>

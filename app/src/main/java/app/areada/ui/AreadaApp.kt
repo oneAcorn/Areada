@@ -226,6 +226,8 @@ fun AreadaApp(
                             enabled = uiState.privateModeEnabled,
                             passwordSet = uiState.privatePasswordSet,
                             busy = uiState.privateLibraryBusy,
+                            currentRelativePath = uiState.privateCurrentRelativePath,
+                            folders = uiState.privateFolders,
                             books = uiState.privateBooks,
                         ),
                         libraryScrollPositions = libraryScrollPositions,
@@ -272,6 +274,10 @@ fun AreadaApp(
                             viewModel.setPrivateModeEnabled(context, enabled)
                         },
                         onDeletePrivateBook = { book -> viewModel.deletePrivateBook(context, book) },
+                        onOpenPrivateFolder = { relativePath ->
+                            viewModel.openPrivateFolder(context, relativePath)
+                        },
+                        onDeletePrivateFolder = { folder -> viewModel.deletePrivateFolder(context, folder) },
                         onRefreshPrivateLibrary = { viewModel.refreshPrivateLibrary(context) },
                         onPreferencesChange = { preferences ->
                             viewModel.updatePreferences(context, preferences)

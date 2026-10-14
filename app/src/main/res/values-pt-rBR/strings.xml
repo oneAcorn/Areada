@@ -214,6 +214,7 @@
     <string name="section">Seção</string>
     <string name="extract_text">Refluxo de PDF</string>
     <string name="n_selected">%1$d selecionados</string>
+    <string name="private_mode_imported_merged">Moveu %1$d livros para a estante privada e ignorou %2$d duplicados.</string>
     <string name="invalid_epub">Arquivo EPUB inválido ou incompatível.</string>
     <string name="epub_no_chapters">Este EPUB não contém capítulos legíveis.</string>
     <string name="folder_no_longer_available">Essa pasta não está mais disponível.</string>

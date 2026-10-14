@@ -247,6 +247,7 @@
     <string name="private_mode_wrong_password">Неверный пароль.</string>
     <string name="private_mode_import_folder">Импорт</string>
     <string name="private_mode_imported">Перемещено книг в личную полку: %1$d.</string>
+    <string name="private_mode_imported_merged">Перемещено книг в личную полку: %1$d, пропущено дубликатов: %2$d.</string>
     <string name="private_mode_import_failed">Не удалось переместить книги в личную полку.</string>
     <string name="private_mode_empty_title">Личная полка пуста</string>
     <string name="private_mode_empty_body">Выберите папку, чтобы переместить все её книги в личную полку.</string>

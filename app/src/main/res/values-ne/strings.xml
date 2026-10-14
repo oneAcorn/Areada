@@ -215,6 +215,7 @@
     <string name="section">खण्ड</string>
     <string name="extract_text">PDF पुनर्प्रवाह</string>
     <string name="n_selected">%1$d छानिएको</string>
+    <string name="private_mode_imported_merged">%1$d पुस्तकहरू निजी शेल्फमा ल्याइयो, %2$d नक्कलहरू छोडियो।</string>
     <string name="invalid_epub">अमान्य वा असमर्थित EPUB फाइल।</string>
     <string name="epub_no_chapters">यस EPUB मा पढ्न मिल्ने अध्याय छैन।</string>
     <string name="folder_no_longer_available">त्यो फोल्डर अब उपलब्ध छैन।</string>

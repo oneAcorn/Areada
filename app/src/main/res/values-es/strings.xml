@@ -245,6 +245,7 @@
     <string name="private_mode_wrong_password">Contraseña incorrecta.</string>
     <string name="private_mode_import_folder">Importar</string>
     <string name="private_mode_imported">Se movieron %1$d libros al estante privado.</string>
+    <string name="private_mode_imported_merged">Se movieron %1$d libros al estante privado y se omitieron %2$d duplicados.</string>
     <string name="private_mode_import_failed">No se pudieron mover los libros al estante privado.</string>
     <string name="private_mode_empty_title">El estante privado está vacío</string>
     <string name="private_mode_empty_body">Elige una carpeta para mover todos sus libros al estante privado.</string>

@@ -111,6 +111,9 @@ private data class GroupHeader(
     val type: DocumentType?,
 )
 
+private const val PrivateBookKeyPrefix = "private:"
+private const val PrivateFolderKeyPrefix = "private-folder:"
+
 @Composable
 internal fun HomeScreen(
     roots: List<LibraryRoot>,
@@ -168,6 +171,8 @@ internal fun HomeScreen(
     onSetPrivatePassword: (String) -> Unit,
     onSetPrivateModeEnabled: (Boolean) -> Unit,
     onDeletePrivateBook: (LibraryBookEntry) -> Unit,
+    onOpenPrivateFolder: (String) -> Unit,
+    onDeletePrivateFolder: (LibraryFolderEntry) -> Unit,
     onRefreshPrivateLibrary: () -> Unit,
     onPreferencesChange: (ReaderPreferences) -> Unit,
 ) {
@@ -252,6 +257,9 @@ internal fun HomeScreen(
     var privateDeleteTarget by remember {
         mutableStateOf<LibraryBookEntry?>(null)
     }
+    var privateFolderDeleteTarget by remember {
+        mutableStateOf<LibraryFolderEntry?>(null)
+    }
     val privateContext = LocalContext.current
     val isPrivateMode = privateLibrary.enabled
     val isSelectionMode by remember {
@@ -292,7 +300,8 @@ internal fun HomeScreen(
                     bookmark?.let { onUpdateBookStatus(it.uriString, status) }
                 }
                 HomeTab.Collection -> {
-                    val privateBook = key.removePrefix("private:").takeIf { key.startsWith("private:") }
+                    val privateBook = key.removePrefix(PrivateBookKeyPrefix)
+                        .takeIf { key.startsWith(PrivateBookKeyPrefix) }
                     if (privateBook != null) {
                         onUpdateBookStatus(privateBook, status)
                         return@forEach
@@ -313,8 +322,8 @@ internal fun HomeScreen(
                     bookmark?.let { onTogglePinDocument(it.id) }
                 }
                 HomeTab.Collection -> {
-                    if (key.startsWith("private:")) {
-                        onTogglePinDocument(key.removePrefix("private:"))
+                    if (key.startsWith(PrivateBookKeyPrefix)) {
+                        onTogglePinDocument(key.removePrefix(PrivateBookKeyPrefix))
                         return@forEach
                     }
                     val folder = folders.firstOrNull { "folder:${it.id}" == key }
@@ -344,8 +353,14 @@ internal fun HomeScreen(
 
     fun batchDelete() {
         selectedItemIds.keys.forEach { key ->
-            if (key.startsWith("private:")) {
-                val privateBook = privateLibrary.books.firstOrNull { book -> "private:${book.id}" == key }
+            if (key.startsWith(PrivateFolderKeyPrefix)) {
+                val folderId = key.removePrefix(PrivateFolderKeyPrefix)
+                val privateFolder = privateLibrary.folders.firstOrNull { folder -> folder.id == folderId }
+                privateFolder?.let { onDeletePrivateFolder(it) }
+                return@forEach
+            }
+            if (key.startsWith(PrivateBookKeyPrefix)) {
+                val privateBook = privateLibrary.books.firstOrNull { book -> "$PrivateBookKeyPrefix${book.id}" == key }
                 privateBook?.let { onDeletePrivateBook(it) }
                 return@forEach
             }
@@ -356,7 +371,7 @@ internal fun HomeScreen(
         }
     }
 
-    LaunchedEffect(selectedRootUriString, currentRelativePath) {
+    LaunchedEffect(selectedRootUriString, currentRelativePath, privateLibrary.currentRelativePath) {
         clearSearchFocus()
     }
 
@@ -539,6 +554,16 @@ internal fun HomeScreen(
         )
     }
 
+    privateFolderDeleteTarget?.let { target ->
+        ConfirmDeleteDialog(
+            onDismiss = { privateFolderDeleteTarget = null },
+            onConfirm = {
+                onDeletePrivateFolder(target)
+                privateFolderDeleteTarget = null
+            },
+        )
+    }
+
     recentActionTarget?.let { recent ->
         val index = recents.indexOfFirst { item -> item.uriString == recent.uriString }
         DocumentListActionSheet(
@@ -673,6 +698,7 @@ internal fun HomeScreen(
             bookStatusByUri = bookStatusByUri,
         )
     }
+    val visiblePrivateFolders = privateLibrary.folders
     val duplicateVisibleBookTitleKeys = remember(visibleBooks) {
         visibleBooks
             .groupingBy { book -> book.title.trim().lowercase() }
@@ -720,21 +746,23 @@ internal fun HomeScreen(
     }
     val collectionFallback = stringResource(R.string.collection)
     val privateCollectionTitle = stringResource(R.string.private_mode_title)
-    val collectionTitle = remember(currentRelativePath, collectionFallback, isPrivateMode, privateCollectionTitle) {
-        if (isPrivateMode) {
+    val collectionTitle = remember(currentRelativePath, collectionFallback, isPrivateMode, privateCollectionTitle, privateLibrary.currentRelativePath) {
+        val activePath = if (isPrivateMode) privateLibrary.currentRelativePath else currentRelativePath
+        if (isPrivateMode && activePath.isBlank()) {
             privateCollectionTitle
         } else {
-            currentRelativePath
+            activePath
                 .trim()
                 .replace('\\', '/')
                 .split('/')
                 .lastOrNull { segment -> segment.isNotBlank() }
-                ?: collectionFallback
+                ?: if (isPrivateMode) privateCollectionTitle else collectionFallback
         }
     }
     val libraryScrollKey = remember(
         selectedRootUriString,
         currentRelativePath,
+        privateLibrary.currentRelativePath,
         fileFilter,
         sortMode,
         selectedHomeTab,
@@ -743,6 +771,7 @@ internal fun HomeScreen(
         listOf(
             selectedRootUriString.orEmpty(),
             currentRelativePath,
+            privateLibrary.currentRelativePath,
             fileFilter.name,
             sortMode.name,
             selectedHomeTab.name,
@@ -767,6 +796,7 @@ internal fun HomeScreen(
             visibleFolders,
             visibleBooks,
             visiblePrivateBooks,
+            visiblePrivateFolders,
             isPrivateMode,
         ) {
             var count = 2
@@ -778,7 +808,11 @@ internal fun HomeScreen(
                         }
                         count += if (visibleSearchResults.isEmpty()) 1 else visibleSearchResults.size.coerceAtMost(41)
                     } else if (isPrivateMode) {
-                        count += if (visiblePrivateBooks.isEmpty()) 1 else visiblePrivateBooks.size
+                        count += visiblePrivateFolders.size
+                        count += visiblePrivateBooks.size
+                        if (visiblePrivateFolders.isEmpty() && visiblePrivateBooks.isEmpty()) {
+                            count += 1
+                        }
                     } else if (selectedRootUriString != null && roots.isNotEmpty()) {
                         count += 1
                         count += visibleFolders.size
@@ -1299,21 +1333,62 @@ internal fun HomeScreen(
                         )
                     }
                 } else if (isPrivateMode) {
-                    if (visiblePrivateBooks.isEmpty()) {
+                    if (visiblePrivateFolders.isEmpty() && visiblePrivateBooks.isEmpty()) {
                         item {
-                            EmptyStateCard(
-                                title = stringResource(R.string.private_mode_empty_title),
-                                body = stringResource(R.string.private_mode_empty_body),
-                                actionLabel = stringResource(R.string.private_mode_import_folder),
-                                onAction = onImportFolderToPrivate,
-                            )
+                            if (privateLibrary.currentRelativePath.isBlank()) {
+                                EmptyStateCard(
+                                    title = stringResource(R.string.private_mode_empty_title),
+                                    body = stringResource(R.string.private_mode_empty_body),
+                                    actionLabel = stringResource(R.string.private_mode_import_folder),
+                                    onAction = onImportFolderToPrivate,
+                                )
+                            } else {
+                                EmptyStateCard(
+                                    title = stringResource(R.string.no_books_found_title),
+                                    body = fileFilter.emptyLibraryMessage(),
+                                )
+                            }
                         }
                     } else {
+                        if (visiblePrivateFolders.isNotEmpty()) {
+                            items(
+                                items = visiblePrivateFolders,
+                                key = { folder -> "$PrivateFolderKeyPrefix${folder.id}" },
+                            ) { folder ->
+                                val folderKey = "$PrivateFolderKeyPrefix${folder.id}"
+                                val isSelected = folderKey in selectedItemIds
+                                SwipeActionBox(
+                                    actionLabel = stringResource(R.string.actions),
+                                    onSwipe = { privateFolderDeleteTarget = folder },
+                                    onSwipeEndToStart = {
+                                        if (isSelected) {
+                                            selectedItemIds.remove(folderKey)
+                                        } else {
+                                            selectedItemIds[folderKey] = true
+                                        }
+                                    },
+                                ) {
+                                    FolderRow(
+                                        name = folder.name,
+                                        pinned = false,
+                                        selected = isSelected,
+                                        onClick = {
+                                            if (isSelectionMode) {
+                                                selectedItemIds.remove(folderKey)
+                                            } else {
+                                                onOpenPrivateFolder(folder.relativePath)
+                                            }
+                                        },
+                                    )
+                                }
+                                Spacer(Modifier.height(8.dp))
+                            }
+                        }
                         items(
                             items = visiblePrivateBooks,
-                            key = { book -> "private:${book.id}" },
+                            key = { book -> "$PrivateBookKeyPrefix${book.id}" },
                         ) { book ->
-                            val bookKey = "private:${book.id}"
+                            val bookKey = "$PrivateBookKeyPrefix${book.id}"
                             val isSelected = bookKey in selectedItemIds
                             SwipeActionBox(
                                 actionLabel = stringResource(R.string.actions),
@@ -1513,8 +1588,8 @@ internal fun HomeScreen(
             ) {
                 val hasMarkableItems = when (selectedHomeTab) {
                     HomeTab.Collection -> selectedItemIds.keys.all { key ->
-                        if (key.startsWith("private:")) {
-                            val privateBook = privateLibrary.books.firstOrNull { book -> "private:${book.id}" == key }
+                        if (key.startsWith(PrivateBookKeyPrefix)) {
+                            val privateBook = privateLibrary.books.firstOrNull { book -> "$PrivateBookKeyPrefix${book.id}" == key }
                             return@all privateBook != null &&
                                 privateBook.type != DocumentType.ZIP &&
                                 privateBook.type != DocumentType.ARCHIVE
